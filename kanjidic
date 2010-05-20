@@ -1,0 +1,336 @@
+#!/usr/bin/ruby
+# coding: utf-8
+
+require 'gtk2'
+require 'libglade2'
+require 'set'
+
+$kanjis = {}
+$radicals = {}
+$skip = {}
+
+def get_ressource(res)
+	File.join(File.dirname(__FILE__), res)
+end
+
+class Radical
+	attr_accessor :unicode, :strokes, :kanjis
+
+	def initialize
+		@kanjis = Set.new()
+	end
+
+	def to_markup
+		'<span font_desc="52">'+@unicode+'</span>'
+	end
+end
+
+class Kanji
+	attr_accessor :unicode
+	attr_accessor :radicals, :skip
+	attr_accessor :kun, :on, :meanings
+	attr_accessor :similar
+
+	def initialize
+		@skip = []
+		@radicals = []
+		@kun = []
+		@on = []
+		@meanings = []
+		@similar = Set.new()
+	end
+
+	def to_markup
+		'<span font_desc="52">'+@unicode+'</span>'
+	end
+end
+
+class KanjiSearch
+	def result
+		if @result then
+			@result
+		else
+			Set.new
+		end
+	end
+
+	def add_radical_criteria(radical)
+		if @result then
+			@result &= $radicals[radical].kanjis
+		else
+			@result = $radicals[radical].kanjis
+		end
+	end
+
+	def add_skip_criteria(type, lp, rp, lpi, rpi)
+		all = nil
+		(lp - lpi).upto(lp + lpi) do |l|
+			(rp - rpi).upto(rp + rpi) do |r|
+				if all then
+					all |= ($skip[[type,l,r]]) || []
+				else
+					all = $skip[[type,l,r]] || Set.new
+				end
+			end
+		end
+
+		if @result then
+			@result &= all
+		else
+			@result = all
+		end
+	end
+end
+
+class RadicalPicker
+	def initialize(main_window, selected)
+		@dialog = Gtk::Dialog.new("Kanji radical selection", main_window, 
+					  Gtk::Dialog::MODAL | Gtk::Dialog::DESTROY_WITH_PARENT,
+					  [Gtk::Stock::OK, Gtk::Dialog::RESPONSE_ACCEPT],
+					  [Gtk::Stock::CANCEL, Gtk::Dialog::RESPONSE_REJECT])
+
+		sc = Gtk::ScrolledWindow.new
+		sc.set_policy(Gtk::POLICY_AUTOMATIC, Gtk::POLICY_AUTOMATIC)
+
+		vbox = Gtk::VBox.new
+		sc.add_with_viewport(vbox)
+
+		max = 0
+
+		@radicals = {}
+		@ivs = {}
+		@models = {}
+		@selection = {}
+
+		$radicals.each do |k,r|
+			if r.strokes.to_i > max then
+				max = r.strokes.to_i
+			end
+			@radicals[r.strokes.to_i] ||= []
+			@radicals[r.strokes.to_i] << k
+		end
+
+		1.upto(max) do |n|
+			if @radicals[n] then
+				frm = Gtk::Frame.new(n.to_s)
+				@models[n] = Gtk::ListStore.new(String, String, Gdk::Pixbuf)
+				@selection[n] = []
+				@ivs[n] = Gtk::IconView.new
+				@ivs[n].model = @models[n]
+				@ivs[n].markup_column = 0
+				@ivs[n].pixbuf_column = 2
+				@ivs[n].selection_mode = Gtk::SELECTION_MULTIPLE
+
+				frm.add(@ivs[n])
+				vbox.pack_start(frm)
+
+				@radicals[n].each do |r|
+					item = @models[n].append
+					item[0] = $radicals[r].to_markup
+					item[1] = r
+					if selected.include? r then
+						@ivs[n].select_path(item.path)
+					end
+				end
+			end
+		end
+
+		@dialog.vbox.pack_start(sc)
+		@dialog.set_default_size(600, 650)
+	end
+
+	def run(&done)
+		@dialog.show_all
+		@dialog.signal_connect("response") do |w, resp|
+			if resp == Gtk::Dialog::RESPONSE_ACCEPT then
+				radicals = ""
+				@ivs.each { |k, iv|
+					radicals += iv.selected_items.collect{|i| iv.model.get_iter(i)[1]}.join
+				}
+				@dialog.hide
+				done.call(radicals)
+			else
+				@dialog.hide
+			end
+		end
+	end
+end
+
+class KanjiView
+	def initialize(main_window)
+		@main_window = main_window
+		@kanji_win = main_window.glade.get_widget('view_kanji_window')
+		@title = @kanji_win.title
+		@lbl_kanji = main_window.glade.get_widget('lbl_kanji')
+		@lbl_chinese = main_window.glade.get_widget('lbl_chinese')
+		@lbl_jp = main_window.glade.get_widget('lbl_jp')
+		@lbl_meanings = main_window.glade.get_widget('lbl_meaning')
+		@lbl_rad_disp = main_window.glade.get_widget('lbl_rad_disp')
+		@lbl_sc = main_window.glade.get_widget('lbl_sc')
+		@lbl_skip = main_window.glade.get_widget('lbl_skip')
+		@similar = main_window.glade.get_widget('similar')
+		@similar.model = Gtk::ListStore.new(String, String, Gdk::Pixbuf)
+		@similar.markup_column = 0
+		@similar.pixbuf_column = 2
+		@similar.signal_connect('item-activated') { |w, item|
+			kanji = @similar.model.get_iter(item)[1].force_encoding('utf-8')
+			self.display_kanji($kanjis[kanji])
+		}
+	end
+	
+	def display_kanji(kanji)
+		@kanji_win.title = @title.sub('%s', kanji.unicode)
+		@lbl_kanji.markup = kanji.to_markup
+		@lbl_chinese.text = kanji.on.join('、')
+		@lbl_jp.text = kanji.kun.join('、')
+		@lbl_meanings.text = kanji.meanings.join(', ')
+		@lbl_rad_disp.text = kanji.radicals.join
+		@lbl_skip.text = kanji.skip.collect{|s| s.collect{|e| e.to_s}.join('-')}.join(', ')
+		
+		sc = Set.new
+		kanji.skip.each do |s|
+			if s[0] == 4 then
+				sc << s[1]
+			else
+				sc << s[1] + s[2]
+			end
+		end
+		@lbl_sc.text = sc.to_a.collect{|e| e.to_s}.join('/')
+		
+		@similar.model.clear
+		kanji.similar.each do |s| 
+			item = @similar.model.append
+			item[0] = $kanjis[s].to_markup
+			item[1] = s
+		end
+		
+		@kanji_win.show_all
+	end
+end
+
+class MainWindow
+	attr :glade
+	attr_accessor :kanjilist, :lbl_rad, :search_window, :search_button
+	attr_accessor :skip_left, :skip_right, :skip_left_int, :skip_right_int, :skip_main
+	
+	def initialize(glade_file)
+		@glade = GladeXML.new(glade_file) { |handler| method(handler) }
+
+		[:skip_left, :skip_right, :skip_left_int, :skip_right_int, :search_button,
+			:kanjilist, :lbl_rad, :search_window, :skip_main].each { |attr|
+			method(attr.to_s + "=").call(@glade.get_widget(attr.to_s))
+		}
+
+		@search_window.show_all
+		@model = Gtk::ListStore.new(String, Gdk::Pixbuf, String)
+		@kanjilist.model = @model
+		@kanjilist.markup_column = 0
+		@kanjilist.pixbuf_column = 1
+
+		@search_window.signal_connect('destroy') { Gtk.main_quit }
+		@kanjiview = KanjiView.new(self)
+	end
+
+	def clear_all(widget)
+		clear_skip(widget)
+		@lbl_rad.text = ''
+	end
+
+	def clear_skip(widget)
+		@skip_left.text = ''
+		@skip_right.text = ''
+		@skip_main.text = ''
+		@skip_left_int.text = 0.to_s
+		@skip_right_int.text = 0.to_s
+	end
+
+	def view_kanji(widget, path)
+		kanji = @kanjilist.model.get_iter(path)[2].force_encoding('utf-8')
+		@kanjiview.display_kanji($kanjis[kanji])
+	end
+
+	def pick_radicals(widget)
+		rp = RadicalPicker.new(@search_window, @lbl_rad.text.force_encoding('utf-8'))
+		rp.run { |radicals| @lbl_rad.text = radicals }
+	end
+
+	def run_search(widget)
+		@model.clear
+		ks = KanjiSearch.new
+		@lbl_rad.text.force_encoding('utf-8').each_char { |c| ks.add_radical_criteria(c) }
+		t = @skip_main.text.to_i
+		l = @skip_left.text.to_i
+		r = @skip_right.text.to_i
+		li = @skip_left_int.text.to_i
+		ri = @skip_right_int.text.to_i
+
+		if [1,2,3,4].include? t and l > 0 and r > 0 and li >= 0 and ri >= 0 then
+			ks.add_skip_criteria(t, l, r, li, ri)
+		end
+
+		res = ks.result
+		ks.result.each do |c|
+			item = @model.append
+			item[0] = $kanjis[c].to_markup
+			item[2] = c
+		end
+	end
+end
+
+state = :radicals
+substate = nil
+curr = nil
+File.open(get_ressource('kanjis_db')).each_line do |line|
+	line = line.chomp
+	if state == :radicals then
+		if line == "-" then
+			state = :kanjis
+		else
+			rad = Radical.new
+			unicode, strokes = line.split
+			rad.unicode = unicode
+			rad.strokes = strokes
+			$radicals[unicode] = rad
+		end
+	end
+
+	if state == :kanjis
+		if line == "=" then
+			state = :simil
+		elsif line == "-" then
+			curr = Kanji.new
+			substate = :idx
+		elsif substate == :idx
+			unicode, radicals, skips = line.split("\t", 3)
+			curr.unicode = unicode
+			radicals.each_char { |r| curr.radicals << r }
+			curr.skip.concat(skips.split("\t").collect{|s|s.split("-").collect{|e|e.to_i}})
+			substate = :on
+		elsif substate == :on
+			curr.on.concat(line.split("\t"))
+			substate = :kun
+		elsif substate == :kun
+			curr.kun.concat(line.split("\t"))
+			substate = :meanings
+		elsif substate == :meanings
+			curr.meanings.concat(line.split("\t"))
+			$kanjis[curr.unicode] = curr
+			curr.radicals.each { |r| $radicals[r].kanjis << curr.unicode }
+			curr.skip.each { |s| $skip[s] ||= Set.new; $skip[s] << curr.unicode }
+		end
+	elsif state == :simil
+		ref, others = line.split(' ', 2)
+		if others and others.size > 0 then
+			others.split.each do |o| 
+				if $kanjis[o] and $kanjis[o] then
+					$kanjis[o].similar << ref
+					$kanjis[ref].similar << o
+				end
+			end
+		end
+	end
+end
+
+
+m = MainWindow.new(get_ressource("kanjidic.glade"))
+Gtk.main

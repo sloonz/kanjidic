@@ -1,16 +1,19 @@
 #!/usr/bin/ruby
 # coding: utf-8
 
+require 'rubygems'
 require 'gtk2'
 require 'libglade2'
 require 'set'
+
+gem 'kanjidic'
 
 $kanjis = {}
 $radicals = {}
 $skip = {}
 
 def get_ressource(res)
-	File.join(File.dirname(__FILE__), res)
+	File.join(Gem.loaded_specs["kanjidic"].full_gem_path, "data", res)
 end
 
 class Radical

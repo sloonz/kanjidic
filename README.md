@@ -1,8 +1,8 @@
 # Kanjidic
 ## Presentation
 
-This is a really simple Kanji Dictonary written in Ruby/GTK. It allows
-you to find kanjis by:
+[https://github.com/sloonz/kanjidic](Kanjidic) is a really simple Kanji
+Dictonary written in Ruby/GTK. It allows you to find kanjis by:
 
 * Fuzzy skip code
 * Multi-radical search
@@ -10,9 +10,12 @@ you to find kanjis by:
 
 This is achieved by the integration of three different databases :
 
-* The famous kanjidic2.xml file
-* kradzip.zip file, for multi-radical search
-* kanji.free.fr database containing similar kanjis
+* The famous
+[http://www.csse.monash.edu.au/~jwb/kanjidic2/](kanjidic2.xml) file
+* [http://www.csse.monash.edu.au/~jwb/kradinf.html](kradzip.zip) file,
+for multi-radical search
+* [http://kanji.free.fr](kanji.free.fr) database containing kanjis
+similarity
 
 If you want to rebuild the database from these sources, just run `make`
 in the `utils` directory. This will generate a `kanjis_db` file.
@@ -30,3 +33,12 @@ versions)
 `gem build kanjidic.gemspec && sudo gem install kanjidic-0.1.gem`
 
 (see `gem help install` if you want to intall it in your home directory)
+
+## Bugs an missing feature
+
+None in my knowledge, but don't hesitate to fill requests on the Github
+[https://github.com/sloonz/kanjidic/issues](tracker).
+
+## LICENCE
+
+See COPYING.

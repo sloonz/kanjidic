@@ -3,7 +3,6 @@
 
 require 'rubygems'
 require 'gtk2'
-require 'libglade2'
 require 'set'
 
 gem 'kanjidic'
@@ -162,17 +161,17 @@ end
 class KanjiView
 	def initialize(main_window)
 		@main_window = main_window
-		@kanji_win = main_window.glade.get_widget('view_kanji_window')
+		@kanji_win = main_window.ui.get_object('view_kanji_window')
 		@kanji_win.signal_connect('delete-event') { @kanji_win.hide_on_delete }
 		@title = @kanji_win.title
-		@lbl_kanji = main_window.glade.get_widget('lbl_kanji')
-		@lbl_chinese = main_window.glade.get_widget('lbl_chinese')
-		@lbl_jp = main_window.glade.get_widget('lbl_jp')
-		@lbl_meanings = main_window.glade.get_widget('lbl_meaning')
-		@lbl_rad_disp = main_window.glade.get_widget('lbl_rad_disp')
-		@lbl_sc = main_window.glade.get_widget('lbl_sc')
-		@lbl_skip = main_window.glade.get_widget('lbl_skip')
-		@similar = main_window.glade.get_widget('similar')
+		@lbl_kanji = main_window.ui.get_object('lbl_kanji')
+		@lbl_chinese = main_window.ui.get_object('lbl_chinese')
+		@lbl_jp = main_window.ui.get_object('lbl_jp')
+		@lbl_meanings = main_window.ui.get_object('lbl_meaning')
+		@lbl_rad_disp = main_window.ui.get_object('lbl_rad_disp')
+		@lbl_sc = main_window.ui.get_object('lbl_sc')
+		@lbl_skip = main_window.ui.get_object('lbl_skip')
+		@similar = main_window.ui.get_object('similar')
 		@similar.model = Gtk::ListStore.new(String, String, Gdk::Pixbuf)
 		@similar.markup_column = 0
 		@similar.pixbuf_column = 2
@@ -213,16 +212,18 @@ class KanjiView
 end
 
 class MainWindow
-	attr :glade
+	attr :ui
 	attr_accessor :kanjilist, :lbl_rad, :search_window, :search_button
 	attr_accessor :skip_left, :skip_right, :skip_left_int, :skip_right_int, :skip_main
 	
-	def initialize(glade_file)
-		@glade = GladeXML.new(glade_file) { |handler| method(handler) }
+	def initialize(ui_file)
+		@ui = Gtk::Builder.new
+		@ui.add_from_file(ui_file)
+		@ui.connect_signals { |signal| method(signal) }
 
 		[:skip_left, :skip_right, :skip_left_int, :skip_right_int, :search_button,
 			:kanjilist, :lbl_rad, :search_window, :skip_main].each { |attr|
-			method(attr.to_s + "=").call(@glade.get_widget(attr.to_s))
+			method(attr.to_s + "=").call(@ui.get_object(attr.to_s))
 		}
 
 		@search_window.show_all
@@ -336,5 +337,5 @@ File.open(get_ressource('kanjis_db')).each_line do |line|
 end
 
 
-m = MainWindow.new(get_ressource("kanjidic.glade"))
+m = MainWindow.new(get_ressource("kanjidic.ui"))
 Gtk.main

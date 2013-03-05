@@ -26,11 +26,11 @@ You will need :
 
 * Rubygems (shipped with Ruby >=1.9, need to be installed for earlier
 versions)
-* Ruby/GTK and Ruby/Libglade
+* Ruby/GTK2
 
 ## Installation
 
-`gem build kanjidic.gemspec && sudo gem install kanjidic-0.1.gem`
+`gem build kanjidic.gemspec && sudo gem install kanjidic-0.2.gem`
 
 (see `gem help install` if you want to intall it in your home directory)
 

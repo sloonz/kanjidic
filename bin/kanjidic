@@ -2,7 +2,7 @@
 # coding: utf-8
 
 require 'rubygems'
-require 'gtk2'
+require 'gtk3'
 require 'set'
 
 gem 'kanjidic'

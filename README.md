@@ -26,7 +26,7 @@ You will need :
 
 * Rubygems (shipped with Ruby >=1.9, need to be installed for earlier
 versions)
-* Ruby/GTK2
+* Ruby/GTK3
 
 ## Installation
 
